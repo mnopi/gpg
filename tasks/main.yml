@@ -82,13 +82,13 @@
 
 - name: Export Public GPG Key
   become: no
-  shell: gpg --export --armor --output {{ gpg_export_key_dir }}/{{ gpg_public_key_file }} {{ gpg_email }}
+  shell: test -f {{ gpg_export_key_dir }}/{{ gpg_public_key_file }} || gpg --export --armor --output {{ gpg_export_key_dir }}/{{ gpg_public_key_file }} {{ gpg_email }}
   changed_when: False
   when: gpg_export_public_key
 
 - name: Export Private GPG Key
   become: no
-  shell: gpg --export-secret-key --armor --output {{ gpg_export_key_dir }}/{{ gpg_private_key_file }} {{ gpg_email }}
+  shell: test -f {{ gpg_export_key_dir }}/{{ gpg_private_key_file }} || gpg --export-secret-key --armor --output {{ gpg_export_key_dir }}/{{ gpg_private_key_file }} {{ gpg_email }}
   changed_when: False
   when: gpg_export_private_key
 
