@@ -16,8 +16,6 @@
     state: present
   when: ansible_distribution == "Ubuntu"
 
-- debug: var=gpg_mame
-
 - name: copy authorized_key
   authorized_key:
     user: "{{ gpg_mame }}"
@@ -98,3 +96,7 @@
     key_id: "{{ {{ gpg_email }} }}"
     state: absent
   when: gpg_remove_key
+
+- name: set fact ansible user gpg_name
+  set_fact:
+    ansible_user: "{{ user }}"
