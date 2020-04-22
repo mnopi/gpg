@@ -35,7 +35,6 @@
     dest: /tmp/gen-key-script
   when: gpg_gen_key
 
-- fail:
 - name: gen key
   become: no
   shell: gpg --list-secret-keys {{ gpg_email }} || gpg --batch --gen-key /tmp/gen-key-script
