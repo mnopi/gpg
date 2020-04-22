@@ -16,9 +16,11 @@
     state: present
   when: ansible_distribution == "Ubuntu"
 
+- debug: var=gpg_mame
+
 - name: copy authorized_key
   authorized_key:
-    user: "{{ gpg_name }}"
+    user: "{{ gpg_mame }}"
     key: "{{ lookup('file', gpg_ssh_key_file) }}"
   when: ansible_distribution == "Ubuntu"
 
