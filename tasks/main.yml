@@ -46,6 +46,7 @@
   file:
     path: "{{ gpg_export_key_dir }}"
     state: directory
+  changed_when: False
   loop:
     - "{{ gpg_export_key_dir }}"
     - "{{ gpg_import_key_dir }}"

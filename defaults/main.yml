@@ -8,11 +8,11 @@ gpg_gen_key: False
 
 gpg_export_private_key: False
 gpg_export_public_key: False
-gpg_export_key_dir: ~/gnupg/export.d
+gpg_export_key_dir: ~/.gnupg/export.d
 
 gpg_import_private_key: False
 gpg_import_public_key: False
-gpg_import_key_dir: ~/gnupg/import.d
+gpg_import_key_dir: ~/.gnupg/import.d
 
 gpg_private_key_file: "{{ gpg_email }}-gpg_private_key.asc"
 gpg_public_key_file: "{{ gpg_email }}-gpg_public_key.asc"
