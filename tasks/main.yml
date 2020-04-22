@@ -1,244 +1,98 @@
 ---
-- name: block nginx-revproxy
-  block:
-    - name: Install Nginx and ssl-cert
-      apt:
-        name:
-          - nginx
-          - ssl-cert
-        state: present
-      tags:
-        - nginxrevproxy
-        - packages
+- name: install gpg
+  apt:
+    name: gnupg
+  when: ansible_distribution == "Ubuntu"
 
-    - name: nginx show
-      systemd:
-        name: nginx
-        state: started
-      register: nginx_status
-      delay: 10
-      retries: 12
-      until: nginx_status['status']['SubState'] == 'running' and nginx_status['status']['ActiveState'] == 'active'
-      tags:
-        - nginxrevproxy
+- name: install gpg
+  become: no
+  homebrew:
+    name: gpg-suite
+  when: ansible_distribution == "MacOSX"
 
-    - name: make certs directory
-      file:
-        name: "{{ item.value.ssl_certicate_path_dest }}"
-        state: directory
-        owner: root
-        group: ssl-cert
-        mode: go-r
-      with_dict: "{{ nginx_revproxy_sites }}"
-      changed_when: False
-      when:
-        - item.value.ssl_certicate_path_dest is defined
-      tags:
-        - nginxrevproxy
+- name: create user
+  user:
+    name: "{{ gpg_mame }}"
+    state: present
+  when: ansible_distribution == "Ubuntu"
 
-    - name: rsync certificates
-      synchronize:
-        src: "{{ item.value.ssl_certificate_path_src}}/"
-        dest: "{{ item.value.ssl_certicate_path_dest }}"
-        copy_links: yes
-        recursive: yes
-      with_dict: "{{ nginx_revproxy_sites }}"
-      changed_when: False
-      when:
-        - item.value.ssl_certificate_path_src is defined
-        - item.value.ssl_certicate_path_dest is defined
-      tags:
-        - nginxrevproxy
+- name: copy authorized_key
+  authorized_key:
+    user: "{{ gpg_name }}"
+    key: "{{ lookup('file', gpg_ssh_key_file) }}"
+  when: ansible_distribution == "Ubuntu"
 
-    - name: Install python-passlib for Python 3 hosts
-      apt:
-        name:
-          - "python3-passlib"
-        state: present
-      register:
-        result
-      delay: 10
-      retries: 12
-      until: result is successful
-      tags:
-        - nginxrevproxy
-        - packages
-      when:
-        - ansible_python['version']['major'] == 3
+- name: set fact ansible user gpg_name
+  set_fact:
+    ansible_user: "{{ gpg_mame }}"
 
-    - name: Install python-passlib for Python 2 hosts
-      apt:
-        name:
-          - "python-passlib"
-        state: present
-      register:
-        result
-      delay: 10
-      retries: 12
-      until: result is successful
-      tags:
-        - nginxrevproxy
-        - packages
-      when:
-        - ansible_python['version']['major'] == 2
+- name: Add gen-key-script
+  become: no
+  template:
+    src: gen-key-script.j2
+    dest: /tmp/gen-key-script
+  when: gpg_gen_key
 
-    - name: add http proxy parameters
-      template:
-        src: proxy.conf.j2
-        dest: /etc/nginx/conf.d/proxy.conf
-        owner: root
-        group: root
-      notify: Reload Nginx
-      when: nginx_proxy_conf is defined
+- fail:
+- name: gen key
+  become: no
+  shell: gpg --list-secret-keys {{ gpg_email }} || gpg --batch --gen-key /tmp/gen-key-script
+  changed_when: False
+  when: gpg_gen_key
 
-    - name: edit nginx.conf
-      lineinfile:
-        path: /etc/nginx/nginx.conf
-        regexp: "{{ item.key }} "
-        line: "        {{ item.key }} {{ item.value }};"
-        owner: root
-        group: root
-        insertafter: '^http {'
-      loop: "{{ nginx_revproxy_http | dict2items }}"
-      notify: Reload Nginx
-      when: nginx_revproxy_http is defined
+- name: create directory for exported keys
+  become: no
+  file:
+    path: "{{ gpg_export_key_dir }}"
+    state: directory
+  loop:
+    - "{{ gpg_export_key_dir }}"
+    - "{{ gpg_import_key_dir }}"
+  when: gpg_export_private_key or gpg_export_public_key or gpg_import_private_key or gpg_import_public_key or gpg_copy_private_key or gpg_copy_public_key
 
-    - name: Set up nginx directories
-      file:
-        path: "/etc/nginx/{{ item }}"
-        state: directory
-        owner: root
-        group: root
-      with_items:
-        - sites-available
-        - sites-enabled
-      tags:
-        - nginxrevproxy
+- name: copy GPG private key
+  become: no
+  copy:
+    src: "{{ gpg_copy_private_key_src }}"
+    dest: "{{ gpg_copy_private_key_dest }}"
+  when: gpg_copy_private_key
 
-    - name: Add authentication
-      htpasswd:
-        path: "/etc/nginx/{{ item.key }}_htpasswd"
-        name: "{{ item.value.auth.login }}"
-        password: "{{ item.value.auth.password }}"
-      with_dict: "{{ nginx_revproxy_sites }}"
-      when:
-        - item.value.auth.htpasswd is defined and item.value.auth.htpasswd
-        - item.value.auth.login is defined
-        - item.value.auth.password is defined
-      tags:
-        - nginxrevproxy
+- name: copy GPG public key
+  become: no
+  copy:
+    src: "{{ gpg_copy_public_key_src }}"
+    dest: "{{ gpg_copy_public_key_dest }}"
+  when: gpg_copy_public_key
 
-    - name: Add Site Config
-      template:
-        src: reverseproxy.conf.j2
-        dest: /etc/nginx/sites-available/{{ item.key }}.conf
-        owner: root
-        group: root
-      notify: Reload Nginx
-      with_dict: "{{ nginx_revproxy_sites }}"
-      register:
-        siteconfig
-      when:
-        - not item.value.ssl | default(True)
-        - not item.value.letsencrypt | default(True)
-      tags:
-        - nginxrevproxy
+- name: Import Public GPG Key from file
+  become: no
+  gpg:
+    key_file: "{{ gpg_import_key_dir }}/{{ gpg_public_key_file }}"
+  when: gpg_import_public_key
 
-    - name: Add Https Site Config
-      template:
-        src: reverseproxy_ssl.conf.j2
-        dest: /etc/nginx/sites-available/{{ item.key }}.conf
-        owner: root
-        group: root
-      notify: Reload Nginx
-      with_dict: "{{ nginx_revproxy_sites }}"
-      register:
-        siteconfig
-      when:
-        - item.value.ssl | default(False)
-        - not item.value.letsencrypt | default(True)
-      tags:
-        - nginxrevproxy
+- name: Import Private GPG Key from file
+  become: no
+  gpg:
+    key_file: "{{ gpg_import_key_dir }}/{{ gpg_private_key_file }}"
+    key_type: private
+    state: latest
+  when: gpg_import_private_key
 
-    - name: Get Active Sites
-      command: ls -1 /etc/nginx/sites-enabled/
-      changed_when: "active.stdout_lines != nginx_revproxy_sites.keys()|sort()"
-      check_mode: false
-      register: active
-      tags:
-        - nginxrevproxy
+- name: Export Public GPG Key
+  become: no
+  shell: gpg --export --armor --output {{ gpg_export_key_dir }}/{{ gpg_public_key_file }} {{ gpg_email }}
+  changed_when: False
+  when: gpg_export_public_key
 
-    - name: De-activate Sites
-      file:
-        path: /etc/nginx/sites-enabled/{{ item }}
-        state: absent
-      with_items: "{{ active.stdout_lines }}"
-      notify: Reload Nginx
-      when:
-        - item not in nginx_revproxy_sites
-      tags:
-        - nginxrevproxy
+- name: Export Private GPG Key
+  become: no
+  shell: gpg --export-secret-key --armor --output {{ gpg_export_key_dir }}/{{ gpg_private_key_file }} {{ gpg_email }}
+  changed_when: False
+  when: gpg_export_private_key
 
-    - name: Enable Site Config
-      file:
-        src: /etc/nginx/sites-available/{{ item.key }}.conf
-        dest: /etc/nginx/sites-enabled/{{ item.key }}
-        state: link
-      with_dict: "{{ nginx_revproxy_sites }}"
-      notify: Reload Nginx
-      when:
-        - siteconfig is success
-        - not item.value.letsencrypt | default(True)
-        - not ansible_check_mode
-      tags:
-        - nginxrevproxy
-
-    - name: Create WebRoot sites
-      file:
-        dest: /var/www/{{ item.key }}/.well-known
-        mode: 0775
-        state: directory
-        owner: www-data
-        group: www-data
-      with_dict: "{{ nginx_revproxy_sites }}"
-      notify: Reload Nginx
-      tags:
-        - nginxrevproxy
-
-    - name: WebRoot Permissions Sites
-      file:
-        dest: /var/www/{{ item.key }}
-        mode: 0775
-        state: directory
-        owner: www-data
-        group: www-data
-        recurse: true
-      with_dict: "{{ nginx_revproxy_sites }}"
-      notify: Reload Nginx
-      tags:
-        - nginxrevproxy
-
-    - name: Get WebRoot Sites
-      command: ls -1 /var/www/
-      changed_when: "webroot.stdout_lines != nginx_revproxy_sites.keys()|sort()"
-      check_mode: false
-      register: webroot
-      tags:
-        - nginxrevproxy
-
-    - name: Remove WebRoot Sites
-      file:
-        path: /var/www/{{ item }}/
-        state: absent
-      with_items: "{{ webroot.stdout_lines }}"
-      notify: Reload Nginx
-      when:
-        - item not in nginx_revproxy_sites
-      tags:
-        - nginxrevproxy
-
-    - include_tasks: letsencrypt.yml
-      tags:
-        - lesencrypt
-        - nginxrevproxy
-  when: nginx_revproxy and ansible_distribution != "MacOSX"
+- name: Remove GPG Key
+  become: no
+  gpg:
+    key_id: "{{ {{ gpg_email }} }}"
+    state: absent
+  when: gpg_remove_key

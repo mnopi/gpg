@@ -1,34 +1,28 @@
 ---
-nginx_revproxy_sites:                                         # List of sites to reverse proxy
-  default:                                                    # Set defualt site to return 444 (Connection Closed Without Response)
-    ssl: true                                                # Set to True if you want to redirect http to https
-    letsencrypt: false
-  example.com:                                                # Domain name
-    domains:                                                  # List of server_name aliases
-      - example.com
-      - www.example.com
-    upstreams:                                                # List of Upstreams
-      - {backend_address: 192.168.0.100, backend_port: 80}
-      - {backend_address: 192.168.0.101, backend_port: 8080}
-    ssl: true                                                 # Set to True if you want to redirect http to https
-    hsts_max_age: 63072000                                    # Set HSTS header with max-age defined
-    letsencrypt: false                                        # Set to True if you want use letsencrypt
-    letsencrypt_email: ""
-    ssl_certificate_path_src: files                                     # Set email for letencrypt cert
-    ssl_certicate_path_dest: /etc/ssl/example.com
-    ssl_certificate: example.com.pem
-    ssl_certificate_key: example.com.key
-    client_max_body_size: '50M'
-    auth:
-      htpasswd: False
-      login:
-      password:
+gpg_mame: "{{ account_name }}"
+gpg_email: "{{account_name}}@{{ domain}}"
 
-nginx_proxy_conf:
-  proxy_send_timeout: 120
-  proxy_read_timeout: 300
-  proxy_buffering: 'off'
+gpg_ssh_key_file: ~/.ssh/id_rsa.pub
 
-nginx_revproxy_http:
-  keepalive_timeout: '5 5'
-  tcp_nodelay: 'on'
+gpg_gen_key: False
+
+gpg_export_private_key: False
+gpg_export_public_key: False
+gpg_export_key_dir: ~/gnupg/export.d
+
+gpg_import_private_key: False
+gpg_import_public_key: False
+gpg_import_key_dir: ~/gnupg/import.d
+
+gpg_private_key_file: "{{ gpg_email }}-gpg_private_key.asc"
+gpg_public_key_file: "{{ gpg_email }}-gpg_public_key.asc"
+
+gpg_copy_private_key: False
+gpg_copy_private_key_src: "{{ gpg_export_key_dir }}/{{ gpg_email }}-gpg_private_key.asc"
+gpg_copy_private_key_dest: "{{ gpg_import_key_dir }}/{{ gpg_email }}-gpg_private_key.asc"
+
+gpg_copy_public_key: False
+gpg_copy_public_key_src: "{{ gpg_export_key_dir }}/{{ gpg_email }}-gpg_public_key.asc"
+gpg_copy_public_key_dest: "{{ gpg_import_key_dir }}/{{ gpg_email }}-gpg_public_key.asc"
+
+gpg_remove_key: False
